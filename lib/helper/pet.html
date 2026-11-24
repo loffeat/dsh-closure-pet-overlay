@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>可露希尔</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
+  body { cursor: default; -webkit-user-select: none; user-select: none; }
+  * { -webkit-user-drag: none; }
+</style>
+</head>
+<body>
+<script src="/pet.js"></script>
+<script>
+(function () {
+  var host = window.petDesktop
+  if (!host) return
+  var over = false
+  var sels = ['#dsh-closure-pet', '#dsh-closure-pet-bubble', '#dsh-closure-pet-settings']
+
+  function visible(el) {
+    if (!el) return false
+    var st = getComputedStyle(el)
+    if (st.display === 'none' || st.visibility === 'hidden' || Number(st.opacity) === 0) return false
+    var r = el.getBoundingClientRect()
+    return r.width >= 2 && r.height >= 2
+  }
+
+  function hitTest(cx, cy) {
+    for (var i = 0; i < sels.length; i++) {
+      var el = document.querySelector(sels[i])
+      if (!visible(el)) continue
+      var r = el.getBoundingClientRect()
+      if (cx >= r.left - 3 && cx <= r.right + 3 && cy >= r.top - 3 && cy <= r.bottom + 3) return true
+    }
+    return false
+  }
+
+  // 点击穿透：完全由渲染进程做命中判断（用 pointermove 的 client 坐标，避免混合 DPI 的坐标系换算）。
+  // forward:true 时即使窗口在穿透状态，移动事件仍会转发到这里。
+  function update(cx, cy) {
+    var hit = hitTest(cx, cy)
+    if (hit === over) return
+    over = hit
+    try { host.setInteract(hit) } catch (err) { /* ignore */ }
+  }
+
+  window.addEventListener('pointermove', function (e) { update(e.clientX, e.clientY) }, { passive: true })
+  window.addEventListener('mousemove', function (e) { update(e.clientX, e.clientY) }, { passive: true })
+  window.addEventListener('blur', function () { if (over) { over = false; try { host.setInteract(false) } catch (err) { /* ignore */ } } })
+
+  // 兜底：每 250ms 用最近的 pointer 位置重算一次（宠物自己拖动/动画时 rect 会变）。
+  var lastX = -1, lastY = -1
+  window.addEventListener('pointermove', function (e) { lastX = e.clientX; lastY = e.clientY }, { passive: true })
+  setInterval(function () { if (lastX >= 0) update(lastX, lastY) }, 250)
+
+  // 仍上报包围盒，便于主进程日志排查（不参与穿透判断）。
+  var lastKey = ''
+  setInterval(function () {
+    try {
+      var x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity, any = false
+      for (var i = 0; i < sels.length; i++) {
+        var el = document.querySelector(sels[i])
+        if (!visible(el)) continue
+        var r = el.getBoundingClientRect()
+        any = true
+        if (r.left < x1) x1 = r.left
+        if (r.top < y1) y1 = r.top
+        if (r.right > x2) x2 = r.right
+        if (r.bottom > y2) y2 = r.bottom
+      }
+      if (!any) return
+      var rect = { x: Math.round(x1), y: Math.round(y1), w: Math.round(x2 - x1), h: Math.round(y2 - y1) }
+      var key = rect.x + ',' + rect.y + ',' + rect.w + ',' + rect.h
+      if (key === lastKey) return
+      lastKey = key
+      host.setInteractRect(rect)
+    } catch (err) { /* ignore */ }
+  }, 1000)
+})()
+</script>
+</body>
+</html>
