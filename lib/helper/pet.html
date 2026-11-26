@@ -4,19 +4,30 @@
 <meta charset="utf-8">
 <title>可露希尔</title>
 <style>
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
-  body { cursor: default; -webkit-user-select: none; user-select: none; }
+  html { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
+  body { margin: 0; padding: 0; background: transparent; overflow: visible; transform-origin: 0 0; cursor: default; -webkit-user-select: none; user-select: none; }
   * { -webkit-user-drag: none; }
 </style>
 </head>
 <body>
-<script src="/pet.js"></script>
 <script>
 (function () {
   var host = window.petDesktop
   if (!host) return
+
+  var origin = { x: 0, y: 0 }
+  var info = null
+  var started = false
+  var lastActive = Date.now()
+  var idlePaused = false
   var over = false
-  var sels = ['#dsh-closure-pet', '#dsh-closure-pet-bubble', '#dsh-closure-pet-settings']
+  var sels = ['#dsh-closure-pet', '#dsh-closure-pet-bubble', '#dsh-closure-pet-settings', '#dsh-closure-pet-sticker']
+
+  function applyOrigin() {
+    try {
+      document.body.style.transform = 'translate(' + (-origin.x) + 'px,' + (-origin.y) + 'px)'
+    } catch (err) { /* ignore */ }
+  }
 
   function visible(el) {
     if (!el) return false
@@ -36,8 +47,6 @@
     return false
   }
 
-  // 点击穿透：完全由渲染进程做命中判断（用 pointermove 的 client 坐标，避免混合 DPI 的坐标系换算）。
-  // forward:true 时即使窗口在穿透状态，移动事件仍会转发到这里。
   function update(cx, cy) {
     var hit = hitTest(cx, cy)
     if (hit === over) return
@@ -45,18 +54,26 @@
     try { host.setInteract(hit) } catch (err) { /* ignore */ }
   }
 
-  window.addEventListener('pointermove', function (e) { update(e.clientX, e.clientY) }, { passive: true })
-  window.addEventListener('mousemove', function (e) { update(e.clientX, e.clientY) }, { passive: true })
-  window.addEventListener('blur', function () { if (over) { over = false; try { host.setInteract(false) } catch (err) { /* ignore */ } } })
+  // 空闲降频：长时间没有交互时暂停视频，鼠标再动或状态变化时恢复。
+  function videoEl() { return document.querySelector('video') }
+  function pauseIdle() {
+    var v = videoEl()
+    if (!v || v.paused) return
+    try { v.pause(); idlePaused = true } catch (err) { /* ignore */ }
+  }
+  function resumeIdle() {
+    if (!idlePaused) return
+    idlePaused = false
+    var v = videoEl()
+    if (!v) return
+    try { v.play().catch(function () {}) } catch (err) { /* ignore */ }
+  }
+  function noteActivity() {
+    lastActive = Date.now()
+    resumeIdle()
+  }
 
-  // 兜底：每 250ms 用最近的 pointer 位置重算一次（宠物自己拖动/动画时 rect 会变）。
-  var lastX = -1, lastY = -1
-  window.addEventListener('pointermove', function (e) { lastX = e.clientX; lastY = e.clientY }, { passive: true })
-  setInterval(function () { if (lastX >= 0) update(lastX, lastY) }, 250)
-
-  // 仍上报包围盒，便于主进程日志排查（不参与穿透判断）。
-  var lastKey = ''
-  setInterval(function () {
+  function reportRect() {
     try {
       var x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity, any = false
       for (var i = 0; i < sels.length; i++) {
@@ -70,13 +87,65 @@
         if (r.bottom > y2) y2 = r.bottom
       }
       if (!any) return
-      var rect = { x: Math.round(x1), y: Math.round(y1), w: Math.round(x2 - x1), h: Math.round(y2 - y1) }
+      var rect = {
+        x: Math.round(x1 + origin.x),
+        y: Math.round(y1 + origin.y),
+        w: Math.round(x2 - x1),
+        h: Math.round(y2 - y1)
+      }
       var key = rect.x + ',' + rect.y + ',' + rect.w + ',' + rect.h
-      if (key === lastKey) return
-      lastKey = key
-      host.setInteractRect(rect)
+      if (key === lastRectKey) return
+      lastRectKey = key
+      host.setRect(rect)
     } catch (err) { /* ignore */ }
-  }, 1000)
+  }
+  var lastRectKey = ''
+
+  function start() {
+    started = true
+    // 让 renderer 的布局按“虚拟桌面”尺寸计算：窗口本身只有宠物包围盒大小。
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, get: function () { return info.width } })
+      Object.defineProperty(window, 'innerHeight', { configurable: true, get: function () { return info.height } })
+      Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, get: function () { return info.width } })
+      Object.defineProperty(document.documentElement, 'clientHeight', { configurable: true, get: function () { return info.height } })
+    } catch (err) { /* ignore */ }
+    applyOrigin()
+
+    var s = document.createElement('script')
+    s.src = '/pet.js'
+    s.onload = function () {
+      setTimeout(reportRect, 200)
+      setInterval(reportRect, 80)
+      setInterval(function () { update(lastX, lastY) }, 250)
+      setInterval(function () {
+        if (Date.now() - lastActive > 60000) pauseIdle()
+      }, 5000)
+    }
+    document.body.appendChild(s)
+  }
+
+  host.onOrigin(function (v) {
+    origin = { x: v.x, y: v.y }
+    applyOrigin()
+  })
+  host.onInfo(function (v) {
+    if (started) return
+    info = v
+    start()
+  })
+
+  var lastX = -1, lastY = -1
+  window.addEventListener('pointermove', function (e) {
+    lastX = e.clientX; lastY = e.clientY
+    noteActivity(); update(lastX, lastY)
+  }, { passive: true })
+  window.addEventListener('mousemove', function (e) {
+    lastX = e.clientX; lastY = e.clientY
+    noteActivity(); update(lastX, lastY)
+  }, { passive: true })
+  window.addEventListener('pointerdown', noteActivity, true)
+  window.addEventListener('blur', function () { if (over) { over = false; try { host.setInteract(false) } catch (err) { /* ignore */ } } })
 })()
 </script>
 </body>

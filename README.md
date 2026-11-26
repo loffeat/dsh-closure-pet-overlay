@@ -113,3 +113,10 @@ Get-Process electron | Stop-Process -Force   # 插件 5s 后自动拉起新 help
 
 - 原项目：[fengshiyangrouguan/dsh-closure-pet](https://github.com/fengshiyangrouguan/dsh-closure-pet)（MIT License, Copyright (c) 2026 FSYRG）。本插件的动画素材（WebM）、音效、像素字体与大部分前端逻辑来自原项目。
 - 本仓库为 MIT License，见 [LICENSE](LICENSE)。
+
+## 性能（v0.2.1）
+
+- 窗口按宠物包围盒跟随（默认不覆盖全屏），透明合成面积缩小约 28 倍。
+- 动画 WebM 重新编码为 444×374 @12fps（保留 VP9 alpha），9 段合计 23.9MB → 2.3MB。
+- 实测（32 线程 / Windows 11）：全屏窗口版 ~1.07 逻辑核（3.35% 系统），跟随窗口版 ~0.12–0.15 逻辑核（0.4–0.5% 系统），约降 89%。
+- 60 秒无指针活动后暂停动画（移动鼠标或状态变化即恢复）。
