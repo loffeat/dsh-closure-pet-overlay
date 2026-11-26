@@ -33,6 +33,7 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   // 边缘吸附强度：200% = 旧行为（屏幕外侧 1/4），0% = 不吸附
   snapStrength: 0,
   opacity: 1,
+  alwaysOnTop: true,
   sound: true,
   volume: 0.7,
 })
@@ -59,6 +60,7 @@ export function normalizeSettings(raw, base) {
   }
   const opacity = Number(raw.opacity)
   if (Number.isFinite(opacity)) out.opacity = Math.min(1, Math.max(OPACITY_MIN, opacity))
+  if (typeof raw.alwaysOnTop === 'boolean') out.alwaysOnTop = raw.alwaysOnTop
   if (typeof raw.sound === 'boolean') out.sound = raw.sound
   const volume = Number(raw.volume)
   if (Number.isFinite(volume)) out.volume = Math.min(1, Math.max(0, volume))

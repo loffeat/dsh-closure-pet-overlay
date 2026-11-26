@@ -22,6 +22,7 @@
     // 边缘吸附强度：200% = 旧行为（屏幕外侧 1/4），0% = 不吸附
     snapStrength: 0,
     opacity: 1,
+    alwaysOnTop: true,
     sound: true,
     volume: 0.7
   });
@@ -43,6 +44,7 @@
     }
     const opacity = Number(raw.opacity);
     if (Number.isFinite(opacity)) out.opacity = Math.min(1, Math.max(OPACITY_MIN, opacity));
+    if (typeof raw.alwaysOnTop === "boolean") out.alwaysOnTop = raw.alwaysOnTop;
     if (typeof raw.sound === "boolean") out.sound = raw.sound;
     const volume = Number(raw.volume);
     if (Number.isFinite(volume)) out.volume = Math.min(1, Math.max(0, volume));
@@ -108,7 +110,8 @@
         snapStrength: settings.snapStrength,
         opacity: settings.opacity,
         sound: settings.sound,
-        volume: settings.volume
+        volume: settings.volume,
+        alwaysOnTop: settings.alwaysOnTop !== false
       }));
     } catch (err) {
     }
@@ -694,6 +697,25 @@
       soundWrap.appendChild(volSlider);
       soundWrap.appendChild(volText);
       soundRow.appendChild(soundWrap);
+      var topRow = row("始终置顶");
+      var topBtn = document.createElement("button");
+      topBtn.style.cssText = "padding:3px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#dfe4f0;font:inherit;cursor:pointer";
+      function syncTopBtn() {
+        var on = settings2.alwaysOnTop !== false;
+        topBtn.textContent = on ? "开" : "关";
+        topBtn.style.background = on ? "rgba(125,134,255,.85)" : "rgba(255,255,255,.06)";
+        topBtn.style.color = on ? "#fff" : "#dfe4f0";
+      }
+      topBtn.addEventListener("click", function() {
+        settings2.alwaysOnTop = settings2.alwaysOnTop === false;
+        syncTopBtn();
+        saveSettings2(true);
+        try {
+          if (window.petDesktop && typeof window.petDesktop.setAlwaysOnTop === "function") window.petDesktop.setAlwaysOnTop(settings2.alwaysOnTop !== false);
+        } catch (err) {
+        }
+      });
+      topRow.appendChild(topBtn);
       var actions = document.createElement("div");
       actions.style.cssText = "display:flex;gap:8px;margin-top:9px";
       function action(label, fn) {
@@ -713,6 +735,7 @@
       document.body.appendChild(panel);
       syncMirrorButtons();
       syncTiersBtn();
+      syncTopBtn();
       return {
         syncMirrorButtons,
         syncTiersBtn,
@@ -721,7 +744,8 @@
         snapSlider,
         snapText,
         bubbleScaleSlider,
-        bubbleScaleText
+        bubbleScaleText,
+        syncTopBtn
       };
     }
     var panelApi = null;
@@ -736,6 +760,7 @@
         panelApi.bubbleScaleText.textContent = Math.round(settings2.bubbleScale) + "%";
         panelApi.syncTiersBtn();
         panelApi.syncMirrorButtons();
+        panelApi.syncTopBtn();
       }
       panel.style.display = "block";
       var s = size();
@@ -2397,6 +2422,11 @@
         if (isFinite(Number(s.opacity))) settings2.opacity = Math.min(1, Math.max(0.3, Number(s.opacity)));
         if (typeof s.sound === "boolean") settings2.sound = s.sound;
         if (isFinite(Number(s.volume))) settings2.volume = Math.min(1, Math.max(0, Number(s.volume)));
+        if (typeof s.alwaysOnTop === "boolean") settings2.alwaysOnTop = s.alwaysOnTop;
+        try {
+          if (window.petDesktop && typeof window.petDesktop.setAlwaysOnTop === "function") window.petDesktop.setAlwaysOnTop(settings2.alwaysOnTop !== false);
+        } catch (err) {
+        }
         layout();
         repositionForAnchor();
         resolveFlip();
@@ -2695,6 +2725,14 @@
     function loadHostConfig() {
       if (stateApi) stateApi.loadHostConfig();
     }
+    function applyAlwaysOnTopSetting() {
+      try {
+        if (window.petDesktop && typeof window.petDesktop.setAlwaysOnTop === "function") {
+          window.petDesktop.setAlwaysOnTop(settings.alwaysOnTop !== false);
+        }
+      } catch (err) {
+      }
+    }
     var startupTimer = 0;
     var startupPending = null;
     var startupHold = false;
@@ -2807,6 +2845,7 @@
         start();
         startPolling();
         loadHostConfig();
+        applyAlwaysOnTopSetting();
         loadSounds();
         log("启动完成", ANIMATION_NAMES.length, "animations · size", settings.size, "· mirror", settings.mirror);
         window.__dshClosurePet = {
@@ -2823,7 +2862,7 @@
           openPanel,
           closePanel,
           get settings() {
-            return { mirror: settings.mirror, size: settings.size, bubble: settings.bubble, bubbleScale: settings.bubbleScale, bubbleTiers: settings.bubbleTiers, snapStrength: settings.snapStrength, opacity: settings.opacity, sound: settings.sound, volume: settings.volume };
+            return { mirror: settings.mirror, size: settings.size, bubble: settings.bubble, bubbleScale: settings.bubbleScale, bubbleTiers: settings.bubbleTiers, snapStrength: settings.snapStrength, opacity: settings.opacity, sound: settings.sound, volume: settings.volume, alwaysOnTop: settings.alwaysOnTop !== false };
           },
           get split() {
             return INTERACT_SPLIT;
@@ -2843,6 +2882,7 @@
                 settings.snapStrength = isFinite(ss) ? Math.min(SNAP_STRENGTH_MAX, Math.max(SNAP_STRENGTH_MIN, ss)) : SNAP_STRENGTH_MAX;
               }
               if (patch.opacity) settings.opacity = Number(patch.opacity);
+              if (typeof patch.alwaysOnTop === "boolean") settings.alwaysOnTop = patch.alwaysOnTop;
               if (typeof patch.sound === "boolean") settings.sound = patch.sound;
               if (patch.volume !== void 0) settings.volume = Number(patch.volume);
             }
@@ -2851,6 +2891,7 @@
             repositionForAnchor();
             resolveFlip();
             applyOpacity();
+            applyAlwaysOnTopSetting();
             if (bubbleApi && bubbleApi.isShown()) refreshBubble();
             if (!settings.bubble) hideBubble();
           },

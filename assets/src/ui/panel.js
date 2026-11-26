@@ -254,6 +254,25 @@ export function createPanel(deps) {
     soundRow.appendChild(soundWrap)
 
     // 操作
+    // Always-on-top toggle: when off the pet can be covered, and it freezes while occluded.
+    var topRow = row('始终置顶')
+    var topBtn = document.createElement('button')
+    topBtn.style.cssText = 'padding:3px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.18);' +
+      'background:rgba(255,255,255,.06);color:#dfe4f0;font:inherit;cursor:pointer'
+    function syncTopBtn() {
+      var on = settings.alwaysOnTop !== false
+      topBtn.textContent = on ? '开' : '关'
+      topBtn.style.background = on ? 'rgba(125,134,255,.85)' : 'rgba(255,255,255,.06)'
+      topBtn.style.color = on ? '#fff' : '#dfe4f0'
+    }
+    topBtn.addEventListener('click', function () {
+      settings.alwaysOnTop = settings.alwaysOnTop === false
+      syncTopBtn()
+      saveSettings(true)
+      try { if (window.petDesktop && typeof window.petDesktop.setAlwaysOnTop === 'function') window.petDesktop.setAlwaysOnTop(settings.alwaysOnTop !== false) } catch (err) { /* ignore */ }
+    })
+    topRow.appendChild(topBtn)
+
     var actions = document.createElement('div')
     actions.style.cssText = 'display:flex;gap:8px;margin-top:9px'
     function action(label, fn) {
@@ -271,6 +290,7 @@ export function createPanel(deps) {
     document.body.appendChild(panel)
     syncMirrorButtons()
     syncTiersBtn()
+    syncTopBtn()
     return {
       syncMirrorButtons: syncMirrorButtons,
       syncTiersBtn: syncTiersBtn,
@@ -280,6 +300,7 @@ export function createPanel(deps) {
       snapText: snapText,
       bubbleScaleSlider: bubbleScaleSlider,
       bubbleScaleText: bubbleScaleText,
+      syncTopBtn: syncTopBtn,
     }
   }
 
@@ -295,6 +316,7 @@ export function createPanel(deps) {
       panelApi.bubbleScaleText.textContent = Math.round(settings.bubbleScale) + '%'
       panelApi.syncTiersBtn()
       panelApi.syncMirrorButtons()
+      panelApi.syncTopBtn()
     }
     panel.style.display = 'block'
     // 放在桌宠上方；下方放不下就放下方

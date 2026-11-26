@@ -193,6 +193,8 @@ export function createState(deps) {
         if (isFinite(Number(s.opacity))) settings.opacity = Math.min(1, Math.max(0.3, Number(s.opacity)))
         if (typeof s.sound === 'boolean') settings.sound = s.sound
         if (isFinite(Number(s.volume))) settings.volume = Math.min(1, Math.max(0, Number(s.volume)))
+        if (typeof s.alwaysOnTop === 'boolean') settings.alwaysOnTop = s.alwaysOnTop
+        try { if (window.petDesktop && typeof window.petDesktop.setAlwaysOnTop === 'function') window.petDesktop.setAlwaysOnTop(settings.alwaysOnTop !== false) } catch (err) { /* ignore */ }
         layout()
         repositionForAnchor()
         resolveFlip()

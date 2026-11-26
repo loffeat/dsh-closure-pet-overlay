@@ -267,6 +267,14 @@ export function startPet(mountContainer) {
   function setPollInterval(ms) { if (stateApi) stateApi.setPollInterval(ms) }
   function loadHostConfig() { if (stateApi) stateApi.loadHostConfig() }
 
+  function applyAlwaysOnTopSetting() {
+    try {
+      if (window.petDesktop && typeof window.petDesktop.setAlwaysOnTop === 'function') {
+        window.petDesktop.setAlwaysOnTop(settings.alwaysOnTop !== false)
+      }
+    } catch (err) { /* ignore */ }
+  }
+
   // ————————————————————— 开屏时序 —————————————————————
   // 常量（STARTUP_DELAY / STARTUP_GAP）定义在文件顶部的可调参数区。
   //
@@ -348,6 +356,7 @@ export function startPet(mountContainer) {
       start()
       startPolling()
       loadHostConfig()
+      applyAlwaysOnTopSetting()
       loadSounds()
       log('启动完成', ANIMATION_NAMES.length, 'animations · size', settings.size, '· mirror', settings.mirror)
 
@@ -362,7 +371,7 @@ export function startPet(mountContainer) {
         segments: function () { return [segmentRange(0), segmentRange(1)] },
         openPanel: openPanel,
         closePanel: closePanel,
-        get settings() { return { mirror: settings.mirror, size: settings.size, bubble: settings.bubble, bubbleScale: settings.bubbleScale, bubbleTiers: settings.bubbleTiers, snapStrength: settings.snapStrength, opacity: settings.opacity, sound: settings.sound, volume: settings.volume } },
+        get settings() { return { mirror: settings.mirror, size: settings.size, bubble: settings.bubble, bubbleScale: settings.bubbleScale, bubbleTiers: settings.bubbleTiers, snapStrength: settings.snapStrength, opacity: settings.opacity, sound: settings.sound, volume: settings.volume, alwaysOnTop: settings.alwaysOnTop !== false } },
         get split() { return INTERACT_SPLIT },
         setSettings: function (patch) {
           if (patch) {
@@ -379,10 +388,11 @@ export function startPet(mountContainer) {
               settings.snapStrength = isFinite(ss) ? Math.min(SNAP_STRENGTH_MAX, Math.max(SNAP_STRENGTH_MIN, ss)) : SNAP_STRENGTH_MAX
             }
             if (patch.opacity) settings.opacity = Number(patch.opacity)
+            if (typeof patch.alwaysOnTop === 'boolean') settings.alwaysOnTop = patch.alwaysOnTop
             if (typeof patch.sound === 'boolean') settings.sound = patch.sound
             if (patch.volume !== undefined) settings.volume = Number(patch.volume)
           }
-          saveSettings(true); layout(); repositionForAnchor(); resolveFlip(); applyOpacity()
+          saveSettings(true); layout(); repositionForAnchor(); resolveFlip(); applyOpacity(); applyAlwaysOnTopSetting()
           if (bubbleApi && bubbleApi.isShown()) refreshBubble()
           if (!settings.bubble) hideBubble()
         },

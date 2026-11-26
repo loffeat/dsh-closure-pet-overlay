@@ -21,6 +21,8 @@
   var lastActive = Date.now()
   var idlePaused = false
   var over = false
+  var occluded = false
+  var pausedByOcclusion = []
   var sels = ['#dsh-closure-pet', '#dsh-closure-pet-bubble', '#dsh-closure-pet-settings', '#dsh-closure-pet-sticker']
 
   function applyOrigin() {
@@ -48,6 +50,7 @@
   }
 
   function update(cx, cy) {
+    if (occluded) { if (over) { over = false; try { host.setInteract(false) } catch (err) { /* ignore */ } } return }
     var hit = hitTest(cx, cy)
     if (hit === over) return
     over = hit
@@ -70,7 +73,47 @@
   }
   function noteActivity() {
     lastActive = Date.now()
-    resumeIdle()
+    if (!occluded) resumeIdle()
+  }
+
+  // 被其他窗口遮挡时保持静止：暂停所有正在播放的视频，解除遮挡后恢复。
+  function freezeAll() {
+    window.addEventListener('play', onPlayWhileOccluded, true)
+    pausedByOcclusion = []
+    var vs = document.querySelectorAll('video')
+    for (var i = 0; i < vs.length; i++) {
+      var v = vs[i]
+      if (!v.paused) {
+        pausedByOcclusion.push(v)
+        try { v.pause() } catch (err) { /* ignore */ }
+      }
+    }
+    if (idlePaused) idlePaused = false
+    if (over) { over = false; try { host.setInteract(false) } catch (err) { /* ignore */ } }
+  }
+
+  function unfreezeAll() {
+    window.removeEventListener('play', onPlayWhileOccluded, true)
+    var list = pausedByOcclusion
+    pausedByOcclusion = []
+    for (var i = 0; i < list.length; i++) {
+      try { list[i].play().catch(function () {}) } catch (err) { /* ignore */ }
+    }
+  }
+
+  // 遮挡期间若有新动画被播放，立刻暂停，保证“被遮挡时必定静止”。
+  function onPlayWhileOccluded(e) {
+    if (!occluded) return
+    try { e.target.pause() } catch (err) { /* ignore */ }
+  }
+
+  function applyOcclusion(next) {
+    next = !!next
+    if (next === occluded) return
+    occluded = next
+    console.log('[closure-pet] occluded=' + occluded)
+    if (occluded) freezeAll()
+    else unfreezeAll()
   }
 
   function reportRect() {
@@ -119,7 +162,7 @@
       setInterval(reportRect, 80)
       setInterval(function () { update(lastX, lastY) }, 250)
       setInterval(function () {
-        if (Date.now() - lastActive > 60000) pauseIdle()
+        if (!occluded && Date.now() - lastActive > 60000) pauseIdle()
       }, 5000)
     }
     document.body.appendChild(s)
@@ -134,6 +177,7 @@
     info = v
     start()
   })
+  if (host.onOcclusion) host.onOcclusion(function (v) { applyOcclusion(v) })
 
   var lastX = -1, lastY = -1
   window.addEventListener('pointermove', function (e) {

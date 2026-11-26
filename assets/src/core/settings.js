@@ -27,7 +27,7 @@ export function saveSettings(immediate) {
       bubble: settings.bubble, bubbleScale: settings.bubbleScale, bubbleTiers: settings.bubbleTiers,
       snapStrength: settings.snapStrength,
       opacity: settings.opacity,
-      sound: settings.sound, volume: settings.volume,
+      sound: settings.sound, volume: settings.volume, alwaysOnTop: settings.alwaysOnTop !== false,
     }))
   } catch (err) {}
   // 同时写回宿主（$DSH_HOME/.dshcl.json），换浏览器/清缓存也能恢复
