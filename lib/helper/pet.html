@@ -50,7 +50,6 @@
   }
 
   function update(cx, cy) {
-    if (occluded) { if (over) { over = false; try { host.setInteract(false) } catch (err) { /* ignore */ } } return }
     var hit = hitTest(cx, cy)
     if (hit === over) return
     over = hit
@@ -188,7 +187,10 @@
     lastX = e.clientX; lastY = e.clientY
     noteActivity(); update(lastX, lastY)
   }, { passive: true })
-  window.addEventListener('pointerdown', noteActivity, true)
+  window.addEventListener('pointerdown', function (e) {
+    noteActivity()
+    try { if (host.raiseTop) host.raiseTop() } catch (err) { /* ignore */ }
+  }, true)
   window.addEventListener('blur', function () { if (over) { over = false; try { host.setInteract(false) } catch (err) { /* ignore */ } } })
 })()
 </script>

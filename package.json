@@ -1,6 +1,6 @@
 {
   "name": "dsh-closure-pet-overlay",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "可露希尔桌宠 · 桌面浮窗版：随 DSH 启停的透明置顶窗口，可跨屏自由拖动、点击穿透、右键设置，并在 AI 运行/谷价时给出提示",
   "type": "module",
   "main": "lib/index.js",
